@@ -3,7 +3,7 @@ from docx import Document
 import re
 
 # 1. 頁面配置
-st.set_page_config(page_title="FBL Master Cleaner V9", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="FBL Master Cleaner V10", page_icon="✈️", layout="wide")
 
 st.markdown("""
     <style>
@@ -12,8 +12,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown('<p class="main-header">✈️ FBL 電報精進工具 V9</p>', unsafe_allow_html=True)
-st.caption("更新：自動保留所有數字開頭的結構行 (如 3/, 5/, 8/)，並維持提單屬性合併。")
+st.markdown('<p class="main-header">✈️ FBL 電報精進工具 V10</p>', unsafe_allow_html=True)
+st.caption("更新：全面支援多位數數字開頭行 (如 3/, 20/)，確保所有航班與結構資訊完整保留。")
 
 # 2. 上傳區
 uploaded_file = st.file_uploader("📂 上傳 FBL Word 檔案 (.docx)", type="docx")
@@ -27,7 +27,7 @@ if uploaded_file is not None:
     # 定義專業屬性關鍵字 (白名單)
     attribute_white_list = ['ECC', 'EAW', 'SPX', 'HEA', 'MDK', 'CRT', 'ICE', 'PER', 'DIP']
     
-    # 定義文字型結構標籤
+    # 定義純文字型結構標籤
     text_structure_tags = ('FBL/', 'CONT', 'LAST', 'FFM')
     
     # 黑名單關鍵字 (防止誤抓代理商)
@@ -45,16 +45,17 @@ if uploaded_file is not None:
                 next_line = raw_lines[i+1]
                 next_upper = next_line.upper()
                 
-                # 判斷下一行是否為專業屬性且不含黑名單
+                # 只有當下一行符合白名單且不含黑名單時才合併
                 if any(attr in next_upper for attr in attribute_white_list) and \
                    not any(kill in next_upper for kill in kill_keywords):
                     current_awb = f"{line} {next_line}"
                     i += 1 
             cleaned_lines.append(current_awb)
             
-        # 2. 處理航班與結構標誌：
-        #    符合「數字/」開頭 (如 3/, 5/, 8/) 或在文字結構標籤內
-        elif re.match(r'^\d/', line) or any(line.startswith(tag) for tag in text_structure_tags):
+        # 2. 處理航班與結構標記：
+        #    符合「數字(不限位數)/」開頭 (如 3/, 8/, 20/, 100/)
+        #    或在文字結構標籤內
+        elif re.match(r'^\d+/', line) or any(line.startswith(tag) for tag in text_structure_tags):
             cleaned_lines.append(line)
             
         # 3. 處理目的地航點 (如 FRA)
@@ -73,15 +74,15 @@ if uploaded_file is not None:
     col2.metric("📝 剩餘總行數", f"{len(cleaned_lines)} 行")
 
     st.download_button(
-        label="📥 下載 V9 最終版 TXT",
+        label="📥 下載 V10 完美版 TXT",
         data=result_text,
-        file_name=f"FBL_V9_Final.txt",
+        file_name=f"FBL_V10_Perfect.txt",
         mime="text/plain",
         use_container_width=True
     )
 
     tab1, tab2 = st.tabs(["📋 預覽結果", "🔍 原始數據"])
     with tab1:
-        st.text_area("預覽：已自動識別並保留 3/, 5/, 8/ 等航班資訊", value=result_text, height=450)
+        st.text_area("預覽：已成功保留多位數數字行 (如 20/)", value=result_text, height=450)
     with tab2:
         st.text_area("原始內容", value="\n".join(raw_lines), height=450)
