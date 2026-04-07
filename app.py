@@ -1,8 +1,9 @@
 import streamlit as st
 from docx import Document
+import re
 
 # 1. 頁面配置
-st.set_page_config(page_title="FBL Master Cleaner", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="FBL Master Cleaner V9", page_icon="✈️", layout="wide")
 
 st.markdown("""
     <style>
@@ -11,8 +12,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown('<p class="main-header">✈️ FBL 電報全能精簡工具</p>', unsafe_allow_html=True)
-st.caption("模式：保留航班資訊、提單主行與屬性代碼，徹底剔除代理商與材積雜訊。")
+st.markdown('<p class="main-header">✈️ FBL 電報精進工具 V9</p>', unsafe_allow_html=True)
+st.caption("更新：自動保留所有數字開頭的結構行 (如 3/, 5/, 8/)，並維持提單屬性合併。")
 
 # 2. 上傳區
 uploaded_file = st.file_uploader("📂 上傳 FBL Word 檔案 (.docx)", type="docx")
@@ -23,32 +24,37 @@ if uploaded_file is not None:
     
     cleaned_lines = []
     
-    # 定義「一定要保留」的專業屬性關鍵字 (白名單)
+    # 定義專業屬性關鍵字 (白名單)
     attribute_white_list = ['ECC', 'EAW', 'SPX', 'HEA', 'MDK', 'CRT', 'ICE', 'PER', 'DIP']
-    # 定義結構性保留標籤 (包含您要求的 3/ 航班行)
-    structure_tags = ('FBL/', '3/', '5/', 'CONT', 'LAST', 'FFM')
+    
+    # 定義文字型結構標籤
+    text_structure_tags = ('FBL/', 'CONT', 'LAST', 'FFM')
+    
+    # 黑名單關鍵字 (防止誤抓代理商)
+    kill_keywords = ('WORLD-TOP', 'OVERSEA', 'QUALITY', 'EXPRESS', 'DIM/', 'SSR/', 'AGENT')
     
     i = 0
     while i < len(raw_lines):
         line = raw_lines[i]
         line_upper = line.upper()
         
-        # 1. 處理提單主行 (020-) 並嘗試合併屬性
+        # 1. 處理提單主行 (020-) 並合併屬性
         if line.startswith('020-'):
             current_awb = line
             if i + 1 < len(raw_lines):
                 next_line = raw_lines[i+1]
                 next_upper = next_line.upper()
                 
-                # 判斷下一行是否為「專業屬性代碼」且不含代理商雜訊
+                # 判斷下一行是否為專業屬性且不含黑名單
                 if any(attr in next_upper for attr in attribute_white_list) and \
-                   'WORLD-TOP' not in next_upper and 'EXPRESS' not in next_upper:
+                   not any(kill in next_upper for kill in kill_keywords):
                     current_awb = f"{line} {next_line}"
-                    i += 1 # 消耗掉下一行
+                    i += 1 
             cleaned_lines.append(current_awb)
             
-        # 2. 處理航班資訊與結構標記 (如 3/LH8013...)
-        elif any(line.startswith(tag) for tag in structure_tags):
+        # 2. 處理航班與結構標誌：
+        #    符合「數字/」開頭 (如 3/, 5/, 8/) 或在文字結構標籤內
+        elif re.match(r'^\d/', line) or any(line.startswith(tag) for tag in text_structure_tags):
             cleaned_lines.append(line)
             
         # 3. 處理目的地航點 (如 FRA)
@@ -67,15 +73,15 @@ if uploaded_file is not None:
     col2.metric("📝 剩餘總行數", f"{len(cleaned_lines)} 行")
 
     st.download_button(
-        label="📥 下載全能精簡版 TXT",
+        label="📥 下載 V9 最終版 TXT",
         data=result_text,
-        file_name=f"FBL_Master_Clean.txt",
+        file_name=f"FBL_V9_Final.txt",
         mime="text/plain",
         use_container_width=True
     )
 
     tab1, tab2 = st.tabs(["📋 預覽結果", "🔍 原始數據"])
     with tab1:
-        st.text_area("預覽：已保留航班資訊與合併屬性", value=result_text, height=450)
+        st.text_area("預覽：已自動識別並保留 3/, 5/, 8/ 等航班資訊", value=result_text, height=450)
     with tab2:
-        st.text_area("原始 Word 內容", value="\n".join(raw_lines), height=450)
+        st.text_area("原始內容", value="\n".join(raw_lines), height=450)
